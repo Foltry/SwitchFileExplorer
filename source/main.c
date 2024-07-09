@@ -5,6 +5,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <switch.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
 
 #define PATH_MAX 1024
 
@@ -12,6 +14,9 @@ char currentPath[PATH_MAX] = "/";
 char entries[256][PATH_MAX];
 int entryCount = 0;
 int selected = 0;
+
+SDL_Window* window = NULL;
+SDL_Renderer* renderer = NULL;
 
 void listDirectory(const char* path) {
     DIR* dir = opendir(path);
@@ -86,6 +91,7 @@ void display() {
     printf("  B: [Disabled]\n");
     printf("  X: Delete file/directory\n");
     printf("  Y: Create new folder\n");
+    printf("  R: View image\n");
     printf("  +: Exit\n");
 
     consoleUpdate(NULL);
@@ -100,11 +106,74 @@ void getUserInput(char* buffer, int bufferSize) {
     swkbdClose(&kbd);
 }
 
+void viewImage(const char* imagePath) {
+    SDL_Surface* surface = IMG_Load(imagePath);
+    if (!surface) {
+        printf("Error: Unable to load image %s\n", imagePath);
+        return;
+    }
+
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+    SDL_FreeSurface(surface);
+    if (!texture) {
+        printf("Error: Unable to create texture from image %s\n", imagePath);
+        return;
+    }
+
+    SDL_Event e;
+    int quit = 0;
+    while (!quit) {
+        while (SDL_PollEvent(&e)) {
+            if (e.type == SDL_QUIT) {
+                quit = 1;
+            } else if (e.type == SDL_KEYDOWN) {
+                if (e.key.keysym.sym == SDLK_PLUS) {
+                    quit = 1;
+                }
+            }
+        }
+
+        SDL_RenderClear(renderer);
+        SDL_RenderCopy(renderer, texture, NULL, NULL);
+        SDL_RenderPresent(renderer);
+    }
+
+    SDL_DestroyTexture(texture);
+}
+
 int main(int argc, char* argv[]) {
     consoleInit(NULL);
     padConfigureInput(1, HidNpadStyleSet_NpadStandard);
     PadState pad;
     padInitializeDefault(&pad);
+
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        printf("Error: Unable to initialize SDL: %s\n", SDL_GetError());
+        return 1;
+    }
+
+    window = SDL_CreateWindow("Image Viewer", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, SDL_WINDOW_SHOWN);
+    if (!window) {
+        printf("Error: Unable to create window: %s\n", SDL_GetError());
+        SDL_Quit();
+        return 1;
+    }
+
+    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    if (!renderer) {
+        printf("Error: Unable to create renderer: %s\n", SDL_GetError());
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
+
+    if (!(IMG_Init(IMG_INIT_JPG | IMG_INIT_PNG) & (IMG_INIT_JPG | IMG_INIT_PNG))) {
+        printf("Error: Unable to initialize SDL_image: %s\n", IMG_GetError());
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
 
     printf("File Explorer\n");
 
@@ -116,7 +185,7 @@ int main(int argc, char* argv[]) {
         u64 kDown = padGetButtonsDown(&pad);
 
         if (kDown & HidNpadButton_Plus) break;
-        
+
         // Disable button B for now
         // if (kDown & HidNpadButton_B) {
         //     goBack(currentPath);
@@ -124,7 +193,7 @@ int main(int argc, char* argv[]) {
         //     selected = 0;
         //     display();
         // }
-        
+
         if (kDown & HidNpadButton_Up) {
             if (selected > 0) selected--;
             display();
@@ -176,10 +245,19 @@ int main(int argc, char* argv[]) {
                 display();
             }
         }
+        if (kDown & HidNpadButton_R) {
+            char imagePath[PATH_MAX];
+            snprintf(imagePath, PATH_MAX, "%s/%s", currentPath, entries[selected]);
+            viewImage(imagePath);
+        }
 
         consoleUpdate(NULL);
     }
 
+    IMG_Quit();
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
     consoleExit(NULL);
     return 0;
 }
