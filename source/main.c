@@ -22,6 +22,10 @@ void listDirectory(const char* path) {
 
     struct dirent* entry;
     entryCount = 0;
+
+    // Add the "..." entry for going back
+    snprintf(entries[entryCount++], PATH_MAX, "...");
+
     while ((entry = readdir(dir)) != NULL && entryCount < 256) {
         snprintf(entries[entryCount++], PATH_MAX, "%s", entry->d_name);
     }
@@ -77,7 +81,7 @@ void display() {
     printf("\nControls:\n");
     printf("  Up/Down: Navigate\n");
     printf("  A: Enter directory\n");
-    printf("  B: Go back\n");
+    printf("  B: [Disabled]\n");
     printf("  X: Delete file/directory\n");
     printf("  Y: Create new folder\n");
     printf("  +: Exit\n");
@@ -110,12 +114,15 @@ int main(int argc, char* argv[]) {
         u64 kDown = padGetButtonsDown(&pad);
 
         if (kDown & HidNpadButton_Plus) break;
-        if (kDown & HidNpadButton_B) {
-            goBack(currentPath);
-            listDirectory(currentPath);
-            selected = 0;
-            display();
-        }
+        
+        // Disable button B for now
+        // if (kDown & HidNpadButton_B) {
+        //     goBack(currentPath);
+        //     listDirectory(currentPath);
+        //     selected = 0;
+        //     display();
+        // }
+        
         if (kDown & HidNpadButton_Up) {
             if (selected > 0) selected--;
             display();
@@ -125,21 +132,29 @@ int main(int argc, char* argv[]) {
             display();
         }
         if (kDown & HidNpadButton_A) {
-            char newPath[PATH_MAX];
-            snprintf(newPath, PATH_MAX, "%s/%s", currentPath, entries[selected]);
-            struct stat pathStat;
-            if (stat(newPath, &pathStat) == 0) {
-                if (S_ISDIR(pathStat.st_mode)) {
-                    strcpy(currentPath, newPath);
-                    listDirectory(currentPath);
-                    selected = 0;
-                    display();
-                } else {
-                    printf("%s is not a directory.\n", newPath);
-                }
+            if (strcmp(entries[selected], "...") == 0) {
+                goBack(currentPath);
             } else {
-                printf("Error: Unable to stat path %s\n", newPath);
+                char newPath[PATH_MAX];
+                if (snprintf(newPath, PATH_MAX, "%s/%s", currentPath, entries[selected]) >= PATH_MAX) {
+                    printf("Error: Path too long\n");
+                    continue;
+                }
+                struct stat pathStat;
+                if (stat(newPath, &pathStat) == 0) {
+                    if (S_ISDIR(pathStat.st_mode)) {
+                        strncpy(currentPath, newPath, PATH_MAX - 1);
+                        currentPath[PATH_MAX - 1] = '\0';
+                    } else {
+                        printf("%s is not a directory.\n", newPath);
+                    }
+                } else {
+                    printf("Error: Unable to stat path %s\n", newPath);
+                }
             }
+            listDirectory(currentPath);
+            selected = 0;
+            display();
         }
         if (kDown & HidNpadButton_X) {
             char delPath[PATH_MAX];

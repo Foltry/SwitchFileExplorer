@@ -40,7 +40,7 @@ include $(DEVKITPRO)/libnx/switch_rules
 TARGET        :=    $(notdir $(CURDIR))
 APP_TITLE     :=    SwitchFileExplorer
 APP_AUTHOR    :=    Trycky
-APP_VERSION   :=    0.0.1
+APP_VERSION   :=    0.0.2
 BUILD         :=    build
 SOURCES       :=    source
 DATA          :=    data
