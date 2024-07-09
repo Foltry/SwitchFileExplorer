@@ -23,8 +23,10 @@ void listDirectory(const char* path) {
     struct dirent* entry;
     entryCount = 0;
 
-    // Add the "..." entry for going back
-    snprintf(entries[entryCount++], PATH_MAX, "...");
+    // Add the "..." entry for going back if not in root directory
+    if (strcmp(path, "/") != 0) {
+        snprintf(entries[entryCount++], PATH_MAX, "...");
+    }
 
     while ((entry = readdir(dir)) != NULL && entryCount < 256) {
         snprintf(entries[entryCount++], PATH_MAX, "%s", entry->d_name);
